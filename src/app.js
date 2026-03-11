@@ -49,6 +49,11 @@ app.listen(PORT, () => {
   console.log(`   GET    /api/v1/produtos/:codigo/estoque`);
   console.log(`   GET    /api/v1/produtos/tabelas`);
   console.log(`   GET    /api/v1/produtos/condicoes`);
+  console.log(`   📱 Sync (Offline):`);
+  console.log(`   GET    /api/v1/sync/pull    - Baixar dados para offline`);
+  console.log(`   POST   /api/v1/sync/push    - Enviar pedidos offline`);
+  console.log(`   GET    /api/v1/sync/status  - Status dos pedidos`);
+  console.log(`   GET    /api/v1/sync/info    - Estatísticas`);
 });
 
 module.exports = app;
