@@ -227,12 +227,18 @@ const pullCounts = async (req, res, next) => {
       [empresa]
     );
 
+    const [[pedidosCount]] = await db.query(
+      'SELECT COUNT(*) as total FROM afv_pedido WHERE CODIGO_VENDEDOR = ?',
+      [vendedor]
+    );
+
     res.json({
       success: true,
       counts: {
         clientes: clientesCount.total,
         produtos: produtosCount.total,
         precos: precosCount.total,
+        pedidos: pedidosCount.total,
       },
       pageSize: PAGE_SIZE,
     });
@@ -352,7 +358,7 @@ const push = async (req, res, next) => {
       try {
         const { 
           local_id, cliente_id, tabelapreco_id, condicao, formapagamento,
-          observacao, solicitante, pedidocliente, itens = [] 
+          observacao, solicitante, pedidocliente, data, entrega, itens = [] 
         } = pedido;
 
         // Buscar próximo NUMPEDIDO
@@ -383,14 +389,18 @@ const push = async (req, res, next) => {
           liquido  += it.preco * it.quantidade;
         });
 
+        // Usar datas recebidas ou fallback para agora
+        const dataPedido = data ? new Date(data) : new Date();
+        const dataEntrega = entrega ? new Date(entrega) : new Date();
+
         // Inserir pedido
         await conn.query(
           `INSERT INTO afv_pedido
            (NUMPEDIDO,NUMPEDIDOAVF,DATAPEDIDO,DATAENTREGA,DATA_ENVIO,CODIGO_CLIENTE,
             CODIGO_TIPOPEDIDO,CODIGO_TABPRECO,CONDICAO_PGTO,FORMA_PGTO,OBSERVACAO,CODIGO_VENDEDOR,
             DESCONTO,ACRESCIMO,VALOR_BRUTO,VALOR_LIQUIDO,STATUS,SOLICITANTE,PEDIDOCLIENTE)
-           VALUES (?,?,NOW(),NOW(),NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
-          [maxped, numPedidoAVF, cliente_id, 1, tabelapreco_id||1, condicao||1,
+           VALUES (?,?,?,?,NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
+          [maxped, numPedidoAVF, dataPedido, dataEntrega, cliente_id, 1, tabelapreco_id||1, condicao||1,
            formapagamento||'', observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
            solicitante||'', pedidocliente||'']
         );
@@ -400,12 +410,12 @@ const push = async (req, res, next) => {
           const it = itens[i];
           await conn.query(
             `INSERT INTO afv_itenspedido
-             (NUMPEDIDO,NUMITEM,CODIGO_PRODUTO,CODIGO_EAN,CODIGO_UNIDFAT,
+             (NUMPEDIDO,NUMITEM,CODIGO_PRODUTO,CODIGO_PRODUTO_REF,CODIGO_EAN,CODIGO_UNIDFAT,
               CODIGO_TABPRECO,QTDE_VENDA,VALOR_UNITARIO,VALOR_BRUTO,VALOR_VENDA,
               DESCONTO,ACRESCIMO,DESCONTO_RATEADO,ACRESCIMO_RATEADO,COMPLEMENTO,STATUS)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'A')`,
-            [maxped, i+1, it.produto, it.codigoean||'', it.unidade||'UN',
-             String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'A')`,
+            [maxped, i+1, it.produto, it.produtoref||'', it.codigoean||'', it.unidade||'UN',
+             it.tabela || String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
              (it.preco_tab||it.preco) * it.quantidade, it.preco,
              it.desconto||0, it.acrescimo||0, it.desconto_rateado||0, it.acrescimo_rateado||0, it.observacao||'']
           );
@@ -636,11 +646,12 @@ const pullPedidos = async (req, res, next) => {
       LIMIT ? OFFSET ?
     `, queryParams);
 
-    // Buscar itens de cada pedido
-    const pedidosComItens = [];
-    for (const pedido of pedidos) {
-      const [itens] = await db.query(`
-        SELECT i.NUMITEM AS item, i.CODIGO_PRODUTO AS produto,
+    // Buscar todos os itens de uma vez (otimização: evita N+1 queries)
+    let pedidosComItens = pedidos;
+    if (pedidos.length > 0) {
+      const pedidoIds = pedidos.map(p => p.pedido);
+      const [todosItens] = await db.query(`
+        SELECT i.NUMPEDIDO AS pedido, i.NUMITEM AS item, i.CODIGO_PRODUTO AS produto,
                i.CODIGO_EAN AS codigoean, pr.descricao,
                i.CODIGO_UNIDFAT AS unidade, i.QTDE_VENDA AS quantidade,
                i.VALOR_UNITARIO AS preco_tab, i.VALOR_VENDA AS preco,
@@ -648,11 +659,25 @@ const pullPedidos = async (req, res, next) => {
                i.COMPLEMENTO AS observacao
         FROM afv_itenspedido i
         LEFT JOIN afv_tbproduto pr ON pr.produto = i.CODIGO_PRODUTO
-        WHERE i.NUMPEDIDO = ?
-        ORDER BY i.NUMITEM
-      `, [pedido.pedido]);
+        WHERE i.NUMPEDIDO IN (?)
+        ORDER BY i.NUMPEDIDO, i.NUMITEM
+      `, [pedidoIds]);
       
-      pedidosComItens.push({ ...pedido, itens });
+      // Agrupar itens por pedido em memória
+      const itensPorPedido = {};
+      for (const item of todosItens) {
+        if (!itensPorPedido[item.pedido]) {
+          itensPorPedido[item.pedido] = [];
+        }
+        // Remover campo pedido do item (já está no header)
+        const { pedido: _, ...itemSemPedido } = item;
+        itensPorPedido[item.pedido].push(itemSemPedido);
+      }
+      
+      pedidosComItens = pedidos.map(p => ({
+        ...p,
+        itens: itensPorPedido[p.pedido] || []
+      }));
     }
 
     const totalPages = Math.ceil(total / limit);

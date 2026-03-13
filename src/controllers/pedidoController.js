@@ -64,7 +64,7 @@ const criar = async (req, res, next) => {
   try {
     await conn.beginTransaction();
     const { cliente_id, tabelapreco_id, condicao, formapagamento,
-            observacao, solicitante, pedidocliente, itens = [] } = req.body;
+            observacao, solicitante, pedidocliente, data, entrega, itens = [] } = req.body;
     const vendedor = req.user.funcionario;
 
     // Buscar próximo NUMPEDIDO
@@ -93,13 +93,17 @@ const criar = async (req, res, next) => {
       liquido  +=  it.preco                  * it.quantidade;
     });
 
+    // Usar datas recebidas ou fallback para agora
+    const dataPedido = data ? new Date(data) : new Date();
+    const dataEntrega = entrega ? new Date(entrega) : new Date();
+
     await conn.query(
       `INSERT INTO afv_pedido
        (NUMPEDIDO,NUMPEDIDOAVF,DATAPEDIDO,DATAENTREGA,DATA_ENVIO,CODIGO_CLIENTE,
         CODIGO_TIPOPEDIDO,CODIGO_TABPRECO,CONDICAO_PGTO,FORMA_PGTO,OBSERVACAO,CODIGO_VENDEDOR,
         DESCONTO,ACRESCIMO,VALOR_BRUTO,VALOR_LIQUIDO,STATUS,SOLICITANTE,PEDIDOCLIENTE)
-       VALUES (?,?,NOW(),NOW(),NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
-      [maxped, numPedidoAVF, cliente_id, 1, tabelapreco_id||1, condicao||1,
+       VALUES (?,?,?,?,NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
+      [maxped, numPedidoAVF, dataPedido, dataEntrega, cliente_id, 1, tabelapreco_id||1, condicao||1,
        formapagamento||'', observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
        solicitante||'', pedidocliente||'']
     );
@@ -108,12 +112,12 @@ const criar = async (req, res, next) => {
       const it = itens[i];
       await conn.query(
         `INSERT INTO afv_itenspedido
-         (NUMPEDIDO,NUMITEM,CODIGO_PRODUTO,CODIGO_EAN,CODIGO_UNIDFAT,
+         (NUMPEDIDO,NUMITEM,CODIGO_PRODUTO,CODIGO_PRODUTO_REF,CODIGO_EAN,CODIGO_UNIDFAT,
           CODIGO_TABPRECO,QTDE_VENDA,VALOR_UNITARIO,VALOR_BRUTO,VALOR_VENDA,
           DESCONTO,ACRESCIMO,DESCONTO_RATEADO,ACRESCIMO_RATEADO,COMPLEMENTO,STATUS)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'A')`,
-        [maxped, i+1, it.produto, it.codigoean||'', it.unidade||'UN',
-         String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'A')`,
+        [maxped, i+1, it.produto, it.produtoref||'', it.codigoean||'', it.unidade||'UN',
+         it.tabela || String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
          (it.preco_tab||it.preco) * it.quantidade, it.preco,
          it.desconto||0, it.acrescimo||0, it.desconto_rateado||0, it.acrescimo_rateado||0, it.observacao||'']
       );
@@ -194,12 +198,12 @@ const atualizar = async (req, res, next) => {
       const it = itens[i];
       await conn.query(
         `INSERT INTO afv_itenspedido
-         (NUMPEDIDO,NUMITEM,CODIGO_PRODUTO,CODIGO_EAN,CODIGO_UNIDFAT,
+         (NUMPEDIDO,NUMITEM,CODIGO_PRODUTO,CODIGO_PRODUTO_REF,CODIGO_EAN,CODIGO_UNIDFAT,
           CODIGO_TABPRECO,QTDE_VENDA,VALOR_UNITARIO,VALOR_BRUTO,VALOR_VENDA,
           DESCONTO,ACRESCIMO,DESCONTO_RATEADO,ACRESCIMO_RATEADO,COMPLEMENTO,STATUS)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'A')`,
-        [pedido, i+1, it.produto, it.codigoean||'', it.unidade||'UN',
-         String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'A')`,
+        [pedido, i+1, it.produto, it.produtoref||'', it.codigoean||'', it.unidade||'UN',
+         it.tabela || String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
          (it.preco_tab||it.preco) * it.quantidade, it.preco,
          it.desconto||0, it.acrescimo||0, it.desconto_rateado||0, 
          it.acrescimo_rateado||0, it.observacao||'']
