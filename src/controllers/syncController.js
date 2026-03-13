@@ -389,9 +389,11 @@ const push = async (req, res, next) => {
           liquido  += it.preco * it.quantidade;
         });
 
-        // Usar datas recebidas ou fallback para agora
+        // Usar datas recebidas ou fallback para agora (zerar hora para 00:00:00)
         const dataPedido = data ? new Date(data) : new Date();
+        dataPedido.setHours(0, 0, 0, 0);
         const dataEntrega = entrega ? new Date(entrega) : new Date();
+        dataEntrega.setHours(0, 0, 0, 0);
 
         // Inserir pedido
         await conn.query(
