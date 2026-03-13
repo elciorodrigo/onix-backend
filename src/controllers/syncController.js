@@ -351,7 +351,7 @@ const push = async (req, res, next) => {
     for (const pedido of pedidos) {
       try {
         const { 
-          local_id, cliente_id, tabelapreco_id, condicao, 
+          local_id, cliente_id, tabelapreco_id, condicao, formapagamento,
           observacao, solicitante, pedidocliente, itens = [] 
         } = pedido;
 
@@ -387,11 +387,11 @@ const push = async (req, res, next) => {
         await conn.query(
           `INSERT INTO afv_pedido
            (NUMPEDIDO,NUMPEDIDOAVF,DATAPEDIDO,DATAENTREGA,DATA_ENVIO,CODIGO_CLIENTE,
-            CODIGO_TIPOPEDIDO,CODIGO_TABPRECO,CONDICAO_PGTO,OBSERVACAO,CODIGO_VENDEDOR,
+            CODIGO_TIPOPEDIDO,CODIGO_TABPRECO,CONDICAO_PGTO,FORMA_PGTO,OBSERVACAO,CODIGO_VENDEDOR,
             DESCONTO,ACRESCIMO,VALOR_BRUTO,VALOR_LIQUIDO,STATUS,SOLICITANTE,PEDIDOCLIENTE)
-           VALUES (?,?,NOW(),NOW(),NOW(),?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
+           VALUES (?,?,NOW(),NOW(),NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
           [maxped, numPedidoAVF, cliente_id, 1, tabelapreco_id||1, condicao||1,
-           observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
+           formapagamento||'', observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
            solicitante||'', pedidocliente||'']
         );
 
@@ -407,7 +407,7 @@ const push = async (req, res, next) => {
             [maxped, i+1, it.produto, it.codigoean||'', it.unidade||'UN',
              String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
              (it.preco_tab||it.preco) * it.quantidade, it.preco,
-             it.desconto||0, it.acrescimo||0, 0, 0, it.observacao||'']
+             it.desconto||0, it.acrescimo||0, it.desconto_rateado||0, it.acrescimo_rateado||0, it.observacao||'']
           );
         }
 

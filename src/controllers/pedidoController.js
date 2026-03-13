@@ -63,8 +63,8 @@ const criar = async (req, res, next) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const { cliente_id, tabelapreco_id, condicao, observacao,
-            solicitante, pedidocliente, itens = [] } = req.body;
+    const { cliente_id, tabelapreco_id, condicao, formapagamento,
+            observacao, solicitante, pedidocliente, itens = [] } = req.body;
     const vendedor = req.user.funcionario;
 
     // Buscar próximo NUMPEDIDO
@@ -96,11 +96,11 @@ const criar = async (req, res, next) => {
     await conn.query(
       `INSERT INTO afv_pedido
        (NUMPEDIDO,NUMPEDIDOAVF,DATAPEDIDO,DATAENTREGA,DATA_ENVIO,CODIGO_CLIENTE,
-        CODIGO_TIPOPEDIDO,CODIGO_TABPRECO,CONDICAO_PGTO,OBSERVACAO,CODIGO_VENDEDOR,
+        CODIGO_TIPOPEDIDO,CODIGO_TABPRECO,CONDICAO_PGTO,FORMA_PGTO,OBSERVACAO,CODIGO_VENDEDOR,
         DESCONTO,ACRESCIMO,VALOR_BRUTO,VALOR_LIQUIDO,STATUS,SOLICITANTE,PEDIDOCLIENTE)
-       VALUES (?,?,NOW(),NOW(),NOW(),?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
+       VALUES (?,?,NOW(),NOW(),NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
       [maxped, numPedidoAVF, cliente_id, 1, tabelapreco_id||1, condicao||1,
-       observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
+       formapagamento||'', observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
        solicitante||'', pedidocliente||'']
     );
 
@@ -115,7 +115,7 @@ const criar = async (req, res, next) => {
         [maxped, i+1, it.produto, it.codigoean||'', it.unidade||'UN',
          String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
          (it.preco_tab||it.preco) * it.quantidade, it.preco,
-         it.desconto||0, it.acrescimo||0, 0, 0, it.observacao||'']
+         it.desconto||0, it.acrescimo||0, it.desconto_rateado||0, it.acrescimo_rateado||0, it.observacao||'']
       );
     }
     await conn.commit();
@@ -141,7 +141,7 @@ const atualizar = async (req, res, next) => {
   try {
     await conn.beginTransaction();
     const { pedido } = req.params;
-    const { observacao, condicao, tabelapreco_id, desconto_geral = 0, 
+    const { observacao, condicao, formapagamento, tabelapreco_id, desconto_geral = 0, 
             acrescimo_geral = 0, itens = [] } = req.body;
 
     // Verificar se pedido existe e está em status editável (A = Aguardando)
@@ -179,10 +179,10 @@ const atualizar = async (req, res, next) => {
     // Atualizar cabeçalho
     await conn.query(
       `UPDATE afv_pedido SET 
-        OBSERVACAO = ?, CONDICAO_PGTO = ?, CODIGO_TABPRECO = ?,
+        OBSERVACAO = ?, CONDICAO_PGTO = ?, FORMA_PGTO = ?, CODIGO_TABPRECO = ?,
         VALOR_BRUTO = ?, DESCONTO = ?, ACRESCIMO = ?, VALOR_LIQUIDO = ?
        WHERE NUMPEDIDO = ?`,
-      [observacao || '', condicao || 1, tabelapreco_id || 1,
+      [observacao || '', condicao || 1, formapagamento || '', tabelapreco_id || 1,
        bruto, descontoTotal, acrescimoTotal, liquido, pedido]
     );
 
