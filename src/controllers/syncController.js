@@ -414,7 +414,7 @@ const push = async (req, res, next) => {
               CODIGO_TABPRECO,QTDE_VENDA,VALOR_UNITARIO,VALOR_BRUTO,VALOR_VENDA,
               DESCONTO,ACRESCIMO,DESCONTO_RATEADO,ACRESCIMO_RATEADO,COMPLEMENTO,STATUS)
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'A')`,
-            [maxped, i+1, it.produto, it.produtoref||'', it.codigoean||'', it.unidade||'UN',
+            [maxped, i+1, it.produto, parseInt(it.produtoref)||0, it.codigoean||'', it.unidade||'UN',
              it.tabela || String(tabelapreco_id||1), it.quantidade, it.preco_tab||it.preco,
              (it.preco_tab||it.preco) * it.quantidade, it.preco,
              it.desconto||0, it.acrescimo||0, it.desconto_rateado||0, it.acrescimo_rateado||0, it.observacao||'']
@@ -652,7 +652,7 @@ const pullPedidos = async (req, res, next) => {
       const pedidoIds = pedidos.map(p => p.pedido);
       const [todosItens] = await db.query(`
         SELECT i.NUMPEDIDO AS pedido, i.NUMITEM AS item, i.CODIGO_PRODUTO AS produto,
-               i.CODIGO_EAN AS codigoean, pr.descricao,
+               i.CODIGO_PRODUTO_REF AS produtoref, i.CODIGO_EAN AS codigoean, pr.descricao,
                i.CODIGO_UNIDFAT AS unidade, i.QTDE_VENDA AS quantidade,
                i.VALOR_UNITARIO AS preco_tab, i.VALOR_VENDA AS preco,
                i.DESCONTO AS desconto, i.ACRESCIMO AS acrescimo,
