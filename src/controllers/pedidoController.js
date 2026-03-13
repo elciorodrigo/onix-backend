@@ -93,11 +93,28 @@ const criar = async (req, res, next) => {
       liquido  +=  it.preco                  * it.quantidade;
     });
 
-    // Usar datas recebidas ou fallback para agora (zerar hora para 00:00:00)
-    const dataPedido = data ? new Date(data) : new Date();
-    dataPedido.setHours(0, 0, 0, 0);
-    const dataEntrega = entrega ? new Date(entrega) : new Date();
-    dataEntrega.setHours(0, 0, 0, 0);
+    // Usar datas recebidas ou fallback para hoje (formato YYYY-MM-DD sem conversão de timezone)
+    const formatDate = (d) => {
+      if (!d) {
+        const hoje = new Date();
+        const year = hoje.getFullYear();
+        const month = String(hoje.getMonth() + 1).padStart(2, '0');
+        const day = String(hoje.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+      // Se for string, extrair apenas YYYY-MM-DD
+      if (typeof d === 'string') {
+        return d.slice(0, 10);
+      }
+      // Se for timestamp ou Date
+      const dt = new Date(d);
+      const year = dt.getFullYear();
+      const month = String(dt.getMonth() + 1).padStart(2, '0');
+      const day = String(dt.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    const dataPedido = formatDate(data);
+    const dataEntrega = formatDate(entrega);
 
     await conn.query(
       `INSERT INTO afv_pedido
