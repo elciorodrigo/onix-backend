@@ -14,11 +14,13 @@ const listar = async (req, res, next) => {
       params.push('%'+busca+'%', '%'+busca+'%');
     }
     const [rows] = await db.query(
-      `SELECT pr.produto AS codigo, pr.descricao, pr.especificacao, pr.unidade,
-              pr.pd_saldo AS estoque, pr.grupo,
+      `SELECT pr.produto AS codigo, pr.descricao, pr.especificacao AS codigoean,
+              pr.produtoref, pr.unidade, pr.pd_saldo AS estoque, pr.grupo,
               COALESCE(pc.preco, 0) AS preco
        FROM afv_tbproduto pr
-       LEFT JOIN afv_tbpreco pc ON pc.produto = pr.produto AND pc.empresa = pr.empresa AND pc.tabela = ?
+       LEFT JOIN afv_tbpreco pc ON pc.produto = pr.produto 
+         AND pc.produtoref = pr.produtoref
+         AND pc.empresa = pr.empresa AND pc.tabela = ?
        ${where} ORDER BY pr.descricao LIMIT ? OFFSET ?`,
       [tabelaPreco, ...params, Number(limit), Number(offset)]
     );
@@ -31,8 +33,8 @@ const buscarPorCodigo = async (req, res, next) => {
     const { codigo } = req.params;
     const empresa = req.user.empresa;
     const [rows] = await db.query(
-      `SELECT produto AS codigo, descricao, especificacao, unidade,
-              pd_saldo AS estoque, grupo
+      `SELECT produto AS codigo, descricao, especificacao AS codigoean,
+              produtoref, unidade, pd_saldo AS estoque, grupo
        FROM afv_tbproduto WHERE empresa = ? AND produto = ? LIMIT 1`,
       [empresa, codigo]
     );
