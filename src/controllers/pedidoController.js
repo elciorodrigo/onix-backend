@@ -64,8 +64,27 @@ const criar = async (req, res, next) => {
   try {
     await conn.beginTransaction();
     const { cliente_id, tabelapreco_id, condicao, formapagamento,
-            observacao, solicitante, pedidocliente, data, entrega, itens = [] } = req.body;
+            observacao, solicitante, pedidocliente, data, entrega, local_id, itens = [] } = req.body;
     const vendedor = req.user.funcionario;
+
+    // Verificar se já existe pedido com mesmo local_id deste vendedor (evita duplicação)
+    if (local_id) {
+      const localIdRef = `APP_${local_id}_V${vendedor}`;
+      const [[existente]] = await conn.query(
+        `SELECT NUMPEDIDO FROM afv_pedido 
+         WHERE CODIGO_VENDEDOR = ? AND SOLICITANTE = ? LIMIT 1`,
+        [vendedor, localIdRef]
+      );
+      
+      if (existente) {
+        // Pedido já existe - retornar o server_id existente sem duplicar
+        await conn.rollback();
+        return res.status(200).json({ 
+          data: { pedido: existente.NUMPEDIDO, duplicado: true },
+          message: 'Pedido já sincronizado anteriormente'
+        });
+      }
+    }
 
     // Buscar próximo NUMPEDIDO
     const [[{ maxped }]] = await conn.query(
@@ -84,6 +103,9 @@ const criar = async (req, res, next) => {
       [prefixo + '%']
     );
     const numPedidoAVF = prefixo + String(maxseq).padStart(5, '0');
+
+    // Gerar localIdRef se local_id foi fornecido
+    const localIdRef = local_id ? `APP_${local_id}_V${vendedor}` : (solicitante || '');
 
     let bruto = 0, desconto = 0, acrescimo = 0, liquido = 0;
     itens.forEach(it => {
@@ -124,7 +146,7 @@ const criar = async (req, res, next) => {
        VALUES (?,?,?,?,NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
       [maxped, numPedidoAVF, dataPedido, dataEntrega, cliente_id, 1, tabelapreco_id||1, condicao||1,
        formapagamento||null, observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
-       solicitante||'', pedidocliente||'']
+       localIdRef, pedidocliente||'']
     );
 
     for (let i = 0; i < itens.length; i++) {

@@ -361,6 +361,26 @@ const push = async (req, res, next) => {
           observacao, solicitante, pedidocliente, data, entrega, itens = [] 
         } = pedido;
 
+        // Verificar se já existe pedido com mesmo local_id deste vendedor (evita duplicação)
+        const localIdRef = `APP_${local_id}_V${vendedor}`;
+        const [[existente]] = await conn.query(
+          `SELECT NUMPEDIDO FROM afv_pedido 
+           WHERE CODIGO_VENDEDOR = ? AND SOLICITANTE = ? LIMIT 1`,
+          [vendedor, localIdRef]
+        );
+        
+        if (existente) {
+          // Pedido já existe - retornar o server_id existente sem duplicar
+          resultados.push({
+            local_id,
+            server_id: existente.NUMPEDIDO,
+            success: true,
+            duplicado: true,
+            message: 'Pedido já sincronizado anteriormente',
+          });
+          continue;
+        }
+
         // Buscar próximo NUMPEDIDO
         const [[{ maxped }]] = await conn.query(
           'SELECT IFNULL(MAX(NUMPEDIDO), 0) + 1 AS maxped FROM afv_pedido'
@@ -412,7 +432,7 @@ const push = async (req, res, next) => {
         const dataPedido = formatDate(data);
         const dataEntrega = formatDate(entrega);
 
-        // Inserir pedido
+        // Inserir pedido (usa localIdRef como SOLICITANTE para identificação única)
         await conn.query(
           `INSERT INTO afv_pedido
            (NUMPEDIDO,NUMPEDIDOAVF,DATAPEDIDO,DATAENTREGA,DATA_ENVIO,CODIGO_CLIENTE,
@@ -421,7 +441,7 @@ const push = async (req, res, next) => {
            VALUES (?,?,?,?,NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
           [maxped, numPedidoAVF, dataPedido, dataEntrega, cliente_id, 1, tabelapreco_id||1, condicao||1,
            formapagamento||null, observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
-           solicitante||'', pedidocliente||'']
+           localIdRef, pedidocliente||'']
         );
 
         // Inserir itens
