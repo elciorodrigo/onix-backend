@@ -401,7 +401,7 @@ const push = async (req, res, next) => {
             DESCONTO,ACRESCIMO,VALOR_BRUTO,VALOR_LIQUIDO,STATUS,SOLICITANTE,PEDIDOCLIENTE)
            VALUES (?,?,?,?,NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
           [maxped, numPedidoAVF, dataPedido, dataEntrega, cliente_id, 1, tabelapreco_id||1, condicao||1,
-           formapagamento||'', observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
+           formapagamento||null, observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
            solicitante||'', pedidocliente||'']
         );
 

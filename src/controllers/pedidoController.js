@@ -104,7 +104,7 @@ const criar = async (req, res, next) => {
         DESCONTO,ACRESCIMO,VALOR_BRUTO,VALOR_LIQUIDO,STATUS,SOLICITANTE,PEDIDOCLIENTE)
        VALUES (?,?,?,?,NOW(),?,?,?,?,?,?,?,?,?,?,?,'A',?,?)`,
       [maxped, numPedidoAVF, dataPedido, dataEntrega, cliente_id, 1, tabelapreco_id||1, condicao||1,
-       formapagamento||'', observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
+       formapagamento||null, observacao||'', vendedor, desconto, acrescimo, bruto, liquido,
        solicitante||'', pedidocliente||'']
     );
 
@@ -186,7 +186,7 @@ const atualizar = async (req, res, next) => {
         OBSERVACAO = ?, CONDICAO_PGTO = ?, FORMA_PGTO = ?, CODIGO_TABPRECO = ?,
         VALOR_BRUTO = ?, DESCONTO = ?, ACRESCIMO = ?, VALOR_LIQUIDO = ?
        WHERE NUMPEDIDO = ?`,
-      [observacao || '', condicao || 1, formapagamento || '', tabelapreco_id || 1,
+      [observacao || '', condicao || 1, formapagamento || null, tabelapreco_id || 1,
        bruto, descontoTotal, acrescimoTotal, liquido, pedido]
     );
 
