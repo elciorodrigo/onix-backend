@@ -124,7 +124,7 @@ const pullProdutos = async (req, res, next) => {
 
     // Produtos paginados com preço (JOIN correto por produto + produtoref + tabela)
     const [produtos] = await db.query(`
-      SELECT pr.produto AS codigo, pr.descricao, pr.especificacao AS observacao,
+      SELECT pr.produto AS codigo, pr.descricao, pr.especificacao AS codigoean,
              pr.unidade, pr.pd_saldo AS estoque, pr.grupo, pr.produtoref,
              COALESCE(pc.preco, 0) AS preco, COALESCE(pc.promocao, 'N') AS promocao
       FROM afv_tbproduto pr
@@ -272,7 +272,7 @@ const pull = async (req, res, next) => {
 
     // 2. Buscar produtos com preço
     const [produtos] = await db.query(`
-      SELECT pr.produto AS codigo, pr.descricao, pr.especificacao AS observacao,
+      SELECT pr.produto AS codigo, pr.descricao, pr.especificacao AS codigoean,
              pr.unidade, pr.pd_saldo AS estoque, pr.grupo, pr.produtoref,
              COALESCE(pc.preco, 0) AS preco
       FROM afv_tbproduto pr
