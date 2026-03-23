@@ -59,6 +59,40 @@ const buscarPorNumero = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+// Helper: Verificar estoque disponível (retorna avisos, não bloqueia)
+const verificarEstoque = async (conn, itens) => {
+  const warnings = [];
+  for (const it of itens) {
+    const [[estoque]] = await conn.query(
+      'SELECT estoque_atual FROM db_rmscontrol.produto_estoque WHERE ism = ?',
+      [it.produto]
+    );
+    const disponivel = estoque?.estoque_atual ?? 0;
+    if (disponivel < it.quantidade) {
+      warnings.push({
+        produto: it.produto,
+        solicitado: it.quantidade,
+        disponivel,
+        falta: it.quantidade - disponivel
+      });
+    }
+  }
+  return warnings;
+};
+
+// Helper: Baixar estoque (SAIDA) ou devolver (ENTRADA)
+const movimentarEstoque = async (conn, itens, tipo = 'SAIDA') => {
+  const operador = tipo === 'SAIDA' ? '-' : '+';
+  for (const it of itens) {
+    await conn.query(
+      `UPDATE db_rmscontrol.produto_estoque 
+       SET estoque_atual = estoque_atual ${operador} ? 
+       WHERE ism = ?`,
+      [it.quantidade, it.produto]
+    );
+  }
+};
+
 const criar = async (req, res, next) => {
   const conn = await db.getConnection();
   try {
@@ -149,6 +183,9 @@ const criar = async (req, res, next) => {
        localIdRef, pedidocliente||'']
     );
 
+    // Verificar estoque (apenas avisos, não bloqueia)
+    const estoqueWarnings = await verificarEstoque(conn, itens);
+
     for (let i = 0; i < itens.length; i++) {
       const it = itens[i];
       await conn.query(
@@ -163,8 +200,20 @@ const criar = async (req, res, next) => {
          it.desconto||0, it.acrescimo||0, it.desconto_rateado||0, it.acrescimo_rateado||0, it.observacao||'']
       );
     }
+
+    // Baixar estoque (db_rmscontrol.produto_estoque)
+    await movimentarEstoque(conn, itens, 'SAIDA');
+
     await conn.commit();
-    res.status(201).json({ data: { pedido: maxped, liquido, bruto, itens: itens.length } });
+    
+    const response = { data: { pedido: maxped, liquido, bruto, itens: itens.length } };
+    if (estoqueWarnings.length > 0) {
+      response.warnings = {
+        message: 'Alguns produtos com estoque insuficiente',
+        produtos: estoqueWarnings
+      };
+    }
+    res.status(201).json(response);
   } catch (err) {
     await conn.rollback();
     next(err);
@@ -172,12 +221,40 @@ const criar = async (req, res, next) => {
 };
 
 const atualizarStatus = async (req, res, next) => {
+  const conn = await db.getConnection();
   try {
+    await conn.beginTransaction();
     const { pedido } = req.params;
     const { status } = req.body;
-    await db.query('UPDATE afv_pedido SET STATUS = ? WHERE NUMPEDIDO = ?', [status, pedido]);
-    res.json({ data: { pedido: Number(pedido), status } });
-  } catch (err) { next(err); }
+
+    // Buscar status atual do pedido
+    const [[pedidoAtual]] = await conn.query(
+      'SELECT STATUS FROM afv_pedido WHERE NUMPEDIDO = ?', [pedido]
+    );
+    if (!pedidoAtual) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Pedido não encontrado.' });
+    }
+
+    const statusAnterior = pedidoAtual.STATUS;
+
+    // Se cancelando pedido (status='C') e não estava cancelado antes, devolver estoque
+    if (status === 'C' && statusAnterior !== 'C') {
+      const [itens] = await conn.query(
+        'SELECT CODIGO_PRODUTO AS produto, QTDE_VENDA AS quantidade FROM afv_itenspedido WHERE NUMPEDIDO = ?',
+        [pedido]
+      );
+      // Devolver estoque (ENTRADA)
+      await movimentarEstoque(conn, itens, 'ENTRADA');
+    }
+
+    await conn.query('UPDATE afv_pedido SET STATUS = ? WHERE NUMPEDIDO = ?', [status, pedido]);
+    await conn.commit();
+    res.json({ data: { pedido: Number(pedido), status, statusAnterior } });
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally { conn.release(); }
 };
 
 // Atualizar pedido completo (itens, preços, descontos)
