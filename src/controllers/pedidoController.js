@@ -64,7 +64,7 @@ const verificarEstoque = async (conn, itens) => {
   const warnings = [];
   for (const it of itens) {
     const [[estoque]] = await conn.query(
-      'SELECT estoque_atual FROM db_rmscontrol.produto_estoque WHERE ism = ?',
+      'SELECT estoque_atual FROM db_rmscontrol.produto_estoque WHERE idProduto = ?',
       [it.produto]
     );
     const disponivel = estoque?.estoque_atual ?? 0;
@@ -87,7 +87,7 @@ const movimentarEstoque = async (conn, itens, tipo = 'SAIDA') => {
     await conn.query(
       `UPDATE db_rmscontrol.produto_estoque 
        SET estoque_atual = estoque_atual ${operador} ? 
-       WHERE ism = ?`,
+       WHERE idProduto = ?`,
       [it.quantidade, it.produto]
     );
   }
